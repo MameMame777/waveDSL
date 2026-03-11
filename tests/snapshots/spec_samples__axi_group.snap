@@ -1,0 +1,43 @@
+---
+source: tests/spec_samples.rs
+expression: result
+---
+{
+  "signal": [
+    [
+      "AXI",
+      [
+        "Write Channel",
+        {
+          "name": "awvalid",
+          "wave": "0.1.0..."
+        },
+        {
+          "name": "awready",
+          "wave": "0..10..."
+        },
+        {
+          "data": [
+            "0xDEAD"
+          ],
+          "name": "wdata",
+          "wave": "x.2.x..."
+        }
+      ],
+      [
+        "Read Channel",
+        {
+          "name": "arvalid",
+          "wave": "0...1.0."
+        },
+        {
+          "data": [
+            "0xBEEF"
+          ],
+          "name": "rdata",
+          "wave": "x...3.x."
+        }
+      ]
+    ]
+  ]
+}

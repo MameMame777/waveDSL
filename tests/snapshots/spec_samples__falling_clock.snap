@@ -1,0 +1,16 @@
+---
+source: tests/spec_samples.rs
+expression: result
+---
+{
+  "signal": [
+    {
+      "name": "clk_p",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "name": "clk_n",
+      "wave": "NNNNNNNN"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+// シンプルなSPIタイミング
+signal sclk  clock(8)
+signal mosi  x(1) data(2, "CMD") data(4, "DATA") x(1)
+signal miso  x(1) data(2, "ACK") data(4, "0xFF") x(1)
+signal cs_n  high(1) low(6) high(1)

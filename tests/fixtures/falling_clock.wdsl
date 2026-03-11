@@ -1,0 +1,2 @@
+signal clk_p clock(8, edge=rising)
+signal clk_n clock(8, edge=falling)

@@ -1,0 +1,32 @@
+---
+source: tests/spec_samples.rs
+expression: result
+---
+{
+  "signal": [
+    {
+      "name": "sclk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "CMD",
+        "DATA"
+      ],
+      "name": "mosi",
+      "wave": "x=.=...x"
+    },
+    {
+      "data": [
+        "ACK",
+        "0xFF"
+      ],
+      "name": "miso",
+      "wave": "x=.=...x"
+    },
+    {
+      "name": "cs_n",
+      "wave": "10.....1"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+---
+source: tests/spec_samples.rs
+expression: result
+---
+{
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPPPPPPPPPPPP"
+    },
+    {
+      "data": [
+        "0xAB",
+        "0xCD",
+        "0xAB",
+        "0xCD",
+        "0xAB",
+        "0xCD",
+        "0xAB",
+        "0xCD"
+      ],
+      "name": "burst",
+      "wave": "x=.=.=.=.=.=.=.=.x"
+    },
+    {
+      "name": "valid",
+      "wave": "01...1...1...1...0"
+    }
+  ]
+}

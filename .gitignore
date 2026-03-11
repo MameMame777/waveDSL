@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Environment
+.env
+.env.local
+
+# Temporary
+*.tmp
+*.bak
+
+# Generated output
+output.json
+axi_output.json
+burst_output.json
+testtest.json
