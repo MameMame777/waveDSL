@@ -1,0 +1,31 @@
+---
+source: tests/spec_samples.rs
+expression: result
+---
+{
+  "config": {
+    "hscale": 2
+  },
+  "foot": {
+    "text": "Figure 100",
+    "tock": 9
+  },
+  "head": {
+    "every": 2,
+    "text": "WaveDrom example",
+    "tick": 0
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "PAYLOAD"
+      ],
+      "name": "bus",
+      "wave": "x.=...x."
+    }
+  ]
+}

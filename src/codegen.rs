@@ -4,7 +4,18 @@ use serde_json::{json, Value as JsonValue};
 /// Generate WaveDrom JSON from a validated AST.
 pub fn generate(program: &Program) -> JsonValue {
     let signals = generate_statements(&program.statements);
-    json!({ "signal": signals })
+    let mut result = serde_json::Map::new();
+    result.insert("signal".to_string(), JsonValue::Array(signals));
+    if let Some(head) = &program.head {
+        result.insert("head".to_string(), kv_to_json(head));
+    }
+    if let Some(foot) = &program.foot {
+        result.insert("foot".to_string(), kv_to_json(foot));
+    }
+    if let Some(config) = &program.config {
+        result.insert("config".to_string(), kv_to_json(config));
+    }
+    JsonValue::Object(result)
 }
 
 fn generate_statements(statements: &[Statement]) -> Vec<JsonValue> {
@@ -12,9 +23,12 @@ fn generate_statements(statements: &[Statement]) -> Vec<JsonValue> {
     for stmt in statements {
         match stmt {
             Statement::Signal {
-                name, sequence, ..
+                name,
+                sequence,
+                attrs,
+                ..
             } => {
-                result.push(generate_signal(name, sequence));
+                result.push(generate_signal(name, sequence, attrs));
             }
             Statement::Group {
                 name, statements, ..
@@ -26,7 +40,7 @@ fn generate_statements(statements: &[Statement]) -> Vec<JsonValue> {
     result
 }
 
-fn generate_signal(name: &str, sequence: &[WaveExpr]) -> JsonValue {
+fn generate_signal(name: &str, sequence: &[WaveExpr], attrs: &[SignalAttr]) -> JsonValue {
     let mut wave = String::new();
     let mut data_labels: Vec<String> = Vec::new();
 
@@ -34,11 +48,16 @@ fn generate_signal(name: &str, sequence: &[WaveExpr]) -> JsonValue {
         generate_wave_expr(expr, &mut wave, &mut data_labels);
     }
 
-    if data_labels.is_empty() {
-        json!({ "name": name, "wave": wave })
-    } else {
-        json!({ "name": name, "wave": wave, "data": data_labels })
+    let mut map = serde_json::Map::new();
+    if !data_labels.is_empty() {
+        map.insert("data".to_string(), json!(data_labels));
     }
+    map.insert("name".to_string(), json!(name));
+    for attr in attrs {
+        map.insert(attr.name.clone(), value_to_json(&attr.value));
+    }
+    map.insert("wave".to_string(), json!(wave));
+    JsonValue::Object(map)
 }
 
 fn generate_group(name: Option<&str>, statements: &[Statement]) -> JsonValue {
@@ -196,6 +215,23 @@ fn get_keyword_enum(args: &[Arg], key: &str) -> Option<String> {
     None
 }
 
+fn value_to_json(value: &Value) -> JsonValue {
+    match value {
+        Value::Number(n) => json!(*n),
+        Value::Float(f) => json!(*f),
+        Value::Str(s) => json!(s),
+        Value::Enum(s) => json!(s),
+    }
+}
+
+fn kv_to_json(pairs: &[KeyValue]) -> JsonValue {
+    let mut map = serde_json::Map::new();
+    for kv in pairs {
+        map.insert(kv.key.clone(), value_to_json(&kv.value));
+    }
+    JsonValue::Object(map)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +343,57 @@ signal cs_n  high(1) low(6) high(1)"#;
     fn test_x() {
         let result = compile("signal s x(3)");
         assert_eq!(result["signal"][0]["wave"], "x..");
+    }
+
+    #[test]
+    fn test_signal_period() {
+        let result = compile("signal clk clock(8) period=2");
+        assert_eq!(result["signal"][0]["wave"], "PPPPPPPP");
+        assert_eq!(result["signal"][0]["period"], 2);
+    }
+
+    #[test]
+    fn test_signal_phase() {
+        let result = compile("signal cmd x(1) phase=0.5");
+        assert_eq!(result["signal"][0]["wave"], "x");
+        assert_eq!(result["signal"][0]["phase"], 0.5);
+    }
+
+    #[test]
+    fn test_head_block() {
+        let result = compile(r#"head { text="hello" tick=0 } signal s high(1)"#);
+        assert_eq!(result["head"]["text"], "hello");
+        assert_eq!(result["head"]["tick"], 0);
+    }
+
+    #[test]
+    fn test_foot_block() {
+        let result = compile(r#"foot { text="Figure 1" tock=9 } signal s high(1)"#);
+        assert_eq!(result["foot"]["text"], "Figure 1");
+        assert_eq!(result["foot"]["tock"], 9);
+    }
+
+    #[test]
+    fn test_config_hscale() {
+        let result = compile("config { hscale=3 } signal s high(1)");
+        assert_eq!(result["config"]["hscale"], 3);
+    }
+
+    #[test]
+    fn test_full_head_foot_config() {
+        let input = r#"head { text="WaveDrom example" tick=0 every=2 }
+foot { text="Figure 100" tock=9 }
+config { hscale=2 }
+signal CK clock(8) period=2
+signal CMD x(1) data(2, "RAS") phase=0.5"#;
+        let result = compile(input);
+        assert_eq!(result["head"]["text"], "WaveDrom example");
+        assert_eq!(result["head"]["tick"], 0);
+        assert_eq!(result["head"]["every"], 2);
+        assert_eq!(result["foot"]["text"], "Figure 100");
+        assert_eq!(result["foot"]["tock"], 9);
+        assert_eq!(result["config"]["hscale"], 2);
+        assert_eq!(result["signal"][0]["period"], 2);
+        assert_eq!(result["signal"][1]["phase"], 0.5);
     }
 }

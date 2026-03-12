@@ -1,0 +1,41 @@
+{
+  "signal": [
+    {
+      "name": "CK",
+      "period": 2,
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "RAS",
+        "CAS"
+      ],
+      "name": "CMD",
+      "phase": 0.5,
+      "wave": "x=.=.x.."
+    },
+    {
+      "data": [
+        "ROW",
+        "COL"
+      ],
+      "name": "ADDR",
+      "phase": 0.5,
+      "wave": "x=.x.=.x"
+    },
+    {
+      "name": "DQS",
+      "wave": "z...01010z"
+    },
+    {
+      "data": [
+        "D0",
+        "D1",
+        "D2",
+        "D3"
+      ],
+      "name": "DQ",
+      "wave": "z....====z"
+    }
+  ]
+}

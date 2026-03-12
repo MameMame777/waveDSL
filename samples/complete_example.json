@@ -1,0 +1,20 @@
+{
+  "signal": [
+    {
+      "name": "sclk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "CMD",
+        "DATA"
+      ],
+      "name": "mosi",
+      "wave": "x=.=...x"
+    },
+    {
+      "name": "cs_n",
+      "wave": "10.....1"
+    }
+  ]
+}

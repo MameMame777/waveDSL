@@ -12,17 +12,21 @@ WaveDSL は WaveDrom JSON を生成するためのドメイン固有言語です
 - 大文字小文字: キーワードは小文字
 - コメント: `//` から行末まで
 - 文字列リテラル: `"..."` ダブルクォートのみ
-- 数値リテラル: 10進数 (`255`) または16進数 (`0xFF`)
+- 数値リテラル: 10進数 (`255`), 16進数 (`0xFF`), 浮動小数点 (`0.5`)
 
 ---
 
 ## 2. 文法（EBNF）
 
 ```
-program     ::= statement*
+program     ::= top_level*
+top_level   ::= statement
+              | head_decl
+              | foot_decl
+              | config_decl
 statement   ::= signal_decl
               | group_decl
-signal_decl ::= "signal" name sequence
+signal_decl ::= "signal" name sequence signal_attr*
 group_decl  ::= "group" string? "{" statement* "}"
 sequence    ::= wave_expr+
 wave_expr   ::= basic_call
@@ -32,12 +36,19 @@ repeat_call ::= "repeat" "(" number "," sequence ")"
 arg_list    ::= arg ("," arg)*
 arg         ::= pos_arg
               | kw_arg
-pos_arg     ::= number | string | enum_value
-kw_arg      ::= name "=" (number | string | enum_value)
+pos_arg     ::= number | float | string | enum_value
+kw_arg      ::= name "=" (number | float | string | enum_value)
+signal_attr ::= name "=" value
+head_decl   ::= "head" "{" kv_pair* "}"
+foot_decl   ::= "foot" "{" kv_pair* "}"
+config_decl ::= "config" "{" kv_pair* "}"
+kv_pair     ::= name "=" value
+value       ::= number | float | string | enum_value
 enum_value  ::= name         // クォートなしのキーワード
 name        ::= [a-zA-Z_][a-zA-Z0-9_]*
 string      ::= '"' [^"]* '"'
 number      ::= [0-9]+ | "0x" [0-9a-fA-F]+
+float       ::= [0-9]+ "." [0-9]+
 ```
 
 - `repeat` は特殊構文として扱い、第2引数に 1 個以上の `wave_expr` を取る
@@ -45,6 +56,8 @@ number      ::= [0-9]+ | "0x" [0-9a-fA-F]+
 - `n` を取る組み込み関数の `n` は 1 以上の整数とする
 - `repeat(n, ...)` の `n` は 1 以上の整数とする
 - 組み込み関数名（`clock`, `high`, `low`, `data`, `x`, `z`, `gap`, `repeat`）は信号名として使用できない（予約語）
+- `head`, `foot`, `config` ブロックはプログラム中のどの位置にも記述でき、それぞれ最大 1 つ
+- `signal_attr` は波形シーケンスの後ろに `name=value` 形式で記述する
 
 ---
 
@@ -146,6 +159,67 @@ signal clk_p clock(8, edge=rising)
 signal clk_n clock(8, edge=falling)
 ```
 
+### 5.5 period / phase の例（DDR タイミング）
+
+```
+// DDR timing with period and phase
+signal CK   clock(8) period=2
+signal CMD   x(1) data(2, "RAS") data(2, "CAS") x(3) phase=0.5
+signal ADDR  x(1) data(2, "ROW") x(2) data(2, "COL") x(1) phase=0.5
+signal DQS   z(4) low(1) high(1) low(1) high(1) low(1) z(1)
+signal DQ    z(5) data(1, "D0") data(1, "D1") data(1, "D2") data(1, "D3") z(1)
+```
+
+出力:
+
+```json
+{
+  "signal": [
+    { "name": "CK", "period": 2, "wave": "PPPPPPPP" },
+    { "data": ["RAS", "CAS"], "name": "CMD", "phase": 0.5, "wave": "x=.=.x.." },
+    { "data": ["ROW", "COL"], "name": "ADDR", "phase": 0.5, "wave": "x=.x.=.x" },
+    { "name": "DQS", "wave": "z...01010z" },
+    { "data": ["D0", "D1", "D2", "D3"], "name": "DQ", "wave": "z....====z" }
+  ]
+}
+```
+
+### 5.6 head / foot / config の例
+
+```
+head {
+    text = "WaveDrom example"
+    tick = 0
+    every = 2
+}
+
+foot {
+    text = "Figure 100"
+    tock = 9
+}
+
+config {
+    hscale = 2
+}
+
+signal clk clock(8)
+signal bus x(2) data(4, "PAYLOAD") x(2)
+```
+
+出力:
+
+```json
+{
+  "config": { "hscale": 2 },
+  "foot": { "text": "Figure 100", "tock": 9 },
+  "head": { "every": 2, "text": "WaveDrom example", "tick": 0 },
+  "signal": [
+    { "name": "clk", "wave": "PPPPPPPP" },
+    { "data": ["PAYLOAD"], "name": "bus", "wave": "x.=...x." }
+  ]
+}
+```
+
 ---
 
 ## 6. WaveDrom JSON へのマッピング
@@ -211,8 +285,91 @@ WaveDrom JSON:
 ## 7. スコープ外（v1未サポート）
 
 - WaveDrom JSON の `node` / `edge` フィールド（矢印アノテーション）
-- `config`（表示設定：周期、位相など）
-- `head` / `foot`（タイトル・フッター）
+
+---
+
+## 7.1 信号属性
+
+信号宣言の波形シーケンスの後ろに `name=value` 形式で属性を付与できる。
+
+| 属性 | 値の型 | 説明 |
+|------|--------|------|
+| `period` | 数値（整数または浮動小数点） | 信号の周期倍率 |
+| `phase` | 数値（整数または浮動小数点） | 信号の位相オフセット |
+
+例:
+
+```
+signal CK   clock(8) period=2
+signal CMD   x(1) data(2, "RAS") phase=0.5
+```
+
+生成される JSON:
+
+```json
+{ "name": "CK", "wave": "PPPPPPPP", "period": 2 }
+{ "name": "CMD", "wave": "x=.", "data": ["RAS"], "phase": 0.5 }
+```
+
+---
+
+## 7.2 head / foot（ヘッダー・フッター）
+
+`head` および `foot` ブロックでタイトルや軸番号を設定できる。
+プログラム中のどの位置にも記述でき、それぞれ最大 1 つ。
+
+| キー | 値の型 | 説明 |
+|------|--------|------|
+| `text` | 文字列 | 表示テキスト |
+| `tick` | 数値 | tick 開始番号 |
+| `tock` | 数値 | tock 開始番号 |
+| `every` | 数値 | tick/tock 表示間隔 |
+
+例:
+
+```
+head {
+    text = "WaveDrom example"
+    tick = 0
+    every = 2
+}
+
+foot {
+    text = "Figure 100"
+    tock = 9
+}
+```
+
+生成される JSON:
+
+```json
+"head": { "text": "WaveDrom example", "tick": 0, "every": 2 }
+"foot": { "text": "Figure 100", "tock": 9 }
+```
+
+---
+
+## 7.3 config（表示設定）
+
+`config` ブロックで表示倍率を設定できる。
+
+| キー | 値の型 | 説明 |
+|------|--------|------|
+| `hscale` | 整数 | 水平スケール倍率 |
+
+例:
+
+```
+config {
+    hscale = 2
+}
+```
+
+生成される JSON:
+
+```json
+"config": { "hscale": 2 }
+```
 
 ---
 

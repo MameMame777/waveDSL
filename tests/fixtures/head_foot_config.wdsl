@@ -1,0 +1,17 @@
+head {
+    text = "WaveDrom example"
+    tick = 0
+    every = 2
+}
+
+foot {
+    text = "Figure 100"
+    tock = 9
+}
+
+config {
+    hscale = 2
+}
+
+signal clk clock(8)
+signal bus x(2) data(4, "PAYLOAD") x(2)

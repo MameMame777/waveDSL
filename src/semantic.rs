@@ -3,11 +3,23 @@ use crate::error::{Span, WaveDslError};
 
 const RESERVED_WORDS: &[&str] = &["clock", "high", "low", "data", "x", "z", "gap", "repeat"];
 const KNOWN_FUNCTIONS: &[&str] = &["clock", "high", "low", "data", "x", "z", "gap"];
+const VALID_SIGNAL_ATTRS: &[&str] = &["period", "phase"];
+const VALID_HEAD_FOOT_KEYS: &[&str] = &["text", "tick", "tock", "every"];
+const VALID_CONFIG_KEYS: &[&str] = &["hscale"];
 
 pub fn validate(program: &Program) -> Result<(), Vec<WaveDslError>> {
     let mut errors = Vec::new();
     for stmt in &program.statements {
         validate_statement(stmt, 0, &mut errors);
+    }
+    if let Some(head) = &program.head {
+        validate_head_foot("head", head, &mut errors);
+    }
+    if let Some(foot) = &program.foot {
+        validate_head_foot("foot", foot, &mut errors);
+    }
+    if let Some(config) = &program.config {
+        validate_config(config, &mut errors);
     }
     if errors.is_empty() {
         Ok(())
@@ -21,6 +33,7 @@ fn validate_statement(stmt: &Statement, group_depth: usize, errors: &mut Vec<Wav
         Statement::Signal {
             name,
             sequence,
+            attrs,
             span,
         } => {
             // Signal name must not be a reserved word
@@ -32,6 +45,9 @@ fn validate_statement(stmt: &Statement, group_depth: usize, errors: &mut Vec<Wav
             }
             for expr in sequence {
                 validate_wave_expr(expr, errors);
+            }
+            for attr in attrs {
+                validate_signal_attr(attr, errors);
             }
         }
         Statement::Group {
@@ -212,6 +228,81 @@ fn check_no_keywords(name: &str, args: &[Arg], errors: &mut Vec<WaveDslError>) {
     }
 }
 
+fn validate_signal_attr(attr: &SignalAttr, errors: &mut Vec<WaveDslError>) {
+    if !VALID_SIGNAL_ATTRS.contains(&attr.name.as_str()) {
+        errors.push(WaveDslError::Semantic {
+            span: attr.span,
+            message: format!(
+                "unknown signal attribute '{}'; expected 'period' or 'phase'",
+                attr.name
+            ),
+        });
+        return;
+    }
+    if !matches!(&attr.value, Value::Number(_) | Value::Float(_)) {
+        errors.push(WaveDslError::Semantic {
+            span: attr.span,
+            message: format!("signal attribute '{}' must be a number", attr.name),
+        });
+    }
+}
+
+fn validate_head_foot(
+    block_name: &str,
+    pairs: &[KeyValue],
+    errors: &mut Vec<WaveDslError>,
+) {
+    for kv in pairs {
+        if !VALID_HEAD_FOOT_KEYS.contains(&kv.key.as_str()) {
+            errors.push(WaveDslError::Semantic {
+                span: kv.span,
+                message: format!(
+                    "unknown {} key '{}'; expected one of: text, tick, tock, every",
+                    block_name, kv.key
+                ),
+            });
+            continue;
+        }
+        match kv.key.as_str() {
+            "text" => {
+                if !matches!(&kv.value, Value::Str(_)) {
+                    errors.push(WaveDslError::Semantic {
+                        span: kv.span,
+                        message: format!("{}.text must be a string", block_name),
+                    });
+                }
+            }
+            "tick" | "tock" | "every" => {
+                if !matches!(&kv.value, Value::Number(_) | Value::Float(_)) {
+                    errors.push(WaveDslError::Semantic {
+                        span: kv.span,
+                        message: format!("{}.{} must be a number", block_name, kv.key),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_config(pairs: &[KeyValue], errors: &mut Vec<WaveDslError>) {
+    for kv in pairs {
+        if !VALID_CONFIG_KEYS.contains(&kv.key.as_str()) {
+            errors.push(WaveDslError::Semantic {
+                span: kv.span,
+                message: format!("unknown config key '{}'; expected 'hscale'", kv.key),
+            });
+            continue;
+        }
+        if kv.key == "hscale" && !matches!(&kv.value, Value::Number(_)) {
+            errors.push(WaveDslError::Semantic {
+                span: kv.span,
+                message: "config.hscale must be an integer".to_string(),
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,5 +364,67 @@ mod tests {
         assert!(result.is_err());
         let errs = result.unwrap_err();
         assert!(errs[0].to_string().contains("unknown function"));
+    }
+
+    #[test]
+    fn test_valid_signal_attr() {
+        assert!(validate_str("signal clk clock(8) period=2").is_ok());
+        assert!(validate_str("signal cmd x(1) phase=0.5").is_ok());
+    }
+
+    #[test]
+    fn test_invalid_signal_attr_name() {
+        let result = validate_str("signal clk clock(8) foo=1");
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs[0].to_string().contains("unknown signal attribute"));
+    }
+
+    #[test]
+    fn test_signal_attr_non_numeric() {
+        let result = validate_str(r#"signal clk clock(8) period="fast""#);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs[0].to_string().contains("must be a number"));
+    }
+
+    #[test]
+    fn test_valid_head() {
+        assert!(validate_str(r#"head { text="title" tick=0 every=2 }"#).is_ok());
+    }
+
+    #[test]
+    fn test_invalid_head_key() {
+        let result = validate_str(r#"head { color=1 }"#);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs[0].to_string().contains("unknown head key"));
+    }
+
+    #[test]
+    fn test_head_text_must_be_string() {
+        let result = validate_str("head { text=42 }");
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs[0].to_string().contains("must be a string"));
+    }
+
+    #[test]
+    fn test_valid_config() {
+        assert!(validate_str("config { hscale=2 }").is_ok());
+    }
+
+    #[test]
+    fn test_invalid_config_key() {
+        let result = validate_str("config { zoom=1 }");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_hscale_must_be_integer() {
+        let result = validate_str("config { hscale=1.5 }");
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs[0].to_string().contains("must be an integer"));
     }
 }

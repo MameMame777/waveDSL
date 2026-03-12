@@ -1,0 +1,12 @@
+// バスインターフェース
+group "AXI" {
+    group "Write Channel" {
+        signal awvalid low(2) high(2) low(4)
+        signal awready low(3) high(1) low(4)
+        signal wdata   x(2) data(2, "0xDEAD", color=2) x(4)
+    }
+    group "Read Channel" {
+        signal arvalid low(4) high(2) low(2)
+        signal rdata   x(4) data(2, "0xBEEF", color=3) x(2)
+    }
+}

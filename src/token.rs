@@ -6,6 +6,9 @@ pub enum Token {
     Signal,
     Group,
     Repeat,
+    Head,
+    Foot,
+    Config,
 
     // Delimiters
     LParen,
@@ -17,6 +20,7 @@ pub enum Token {
 
     // Literals
     Number(u64),
+    Float(f64),
     StringLit(String),
 
     // Identifier (signal names, function names, enum values)

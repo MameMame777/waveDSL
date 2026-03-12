@@ -14,10 +14,31 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<Program, WaveDslError> {
         let mut statements = Vec::new();
+        let mut head = None;
+        let mut foot = None;
+        let mut config = None;
         while !self.at_eof() {
-            statements.push(self.parse_statement()?);
+            match self.peek() {
+                Token::Head => {
+                    head = Some(self.parse_kv_block()?);
+                }
+                Token::Foot => {
+                    foot = Some(self.parse_kv_block()?);
+                }
+                Token::Config => {
+                    config = Some(self.parse_kv_block()?);
+                }
+                _ => {
+                    statements.push(self.parse_statement()?);
+                }
+            }
         }
-        Ok(Program { statements })
+        Ok(Program {
+            statements,
+            head,
+            foot,
+            config,
+        })
     }
 
     fn peek(&self) -> &Token {
@@ -73,10 +94,12 @@ impl Parser {
 
         let name = self.expect_ident()?;
         let sequence = self.parse_sequence()?;
+        let attrs = self.parse_signal_attrs()?;
 
         Ok(Statement::Signal {
             name,
             sequence,
+            attrs,
             span,
         })
     }
@@ -130,7 +153,15 @@ impl Parser {
     }
 
     fn is_wave_expr_start(&self) -> bool {
-        matches!(self.peek(), Token::Ident(_) | Token::Repeat)
+        match self.peek() {
+            Token::Repeat => true,
+            Token::Ident(_) => {
+                // Only a wave expr if followed by '(' — otherwise it's a signal attr
+                self.pos + 1 < self.tokens.len()
+                    && matches!(self.tokens[self.pos + 1].token, Token::LParen)
+            }
+            _ => false,
+        }
     }
 
     fn parse_wave_expr(&mut self) -> Result<WaveExpr, WaveDslError> {
@@ -224,6 +255,10 @@ impl Parser {
                 self.advance();
                 Ok(Value::Number(n))
             }
+            Token::Float(f) => {
+                self.advance();
+                Ok(Value::Float(f))
+            }
             Token::StringLit(s) => {
                 let s = s.clone();
                 self.advance();
@@ -269,6 +304,38 @@ impl Parser {
                 message: format!("expected number, found {:?}", self.peek()),
             }),
         }
+    }
+
+    /// Parse trailing signal attributes: name=value pairs after the wave sequence.
+    fn parse_signal_attrs(&mut self) -> Result<Vec<SignalAttr>, WaveDslError> {
+        let mut attrs = Vec::new();
+        while matches!(self.peek(), Token::Ident(_))
+            && self.pos + 1 < self.tokens.len()
+            && matches!(self.tokens[self.pos + 1].token, Token::Eq)
+        {
+            let span = self.span();
+            let name = self.expect_ident()?;
+            self.expect(&Token::Eq)?;
+            let value = self.parse_value()?;
+            attrs.push(SignalAttr { name, value, span });
+        }
+        Ok(attrs)
+    }
+
+    /// Parse a key-value block: keyword { key=value ... }
+    fn parse_kv_block(&mut self) -> Result<Vec<KeyValue>, WaveDslError> {
+        self.advance(); // consume Head/Foot/Config keyword
+        self.expect(&Token::LBrace)?;
+        let mut pairs = Vec::new();
+        while !matches!(self.peek(), Token::RBrace | Token::Eof) {
+            let span = self.span();
+            let key = self.expect_ident()?;
+            self.expect(&Token::Eq)?;
+            let value = self.parse_value()?;
+            pairs.push(KeyValue { key, value, span });
+        }
+        self.expect(&Token::RBrace)?;
+        Ok(pairs)
     }
 }
 
@@ -359,5 +426,71 @@ mod tests {
         } else {
             panic!("expected Signal");
         }
+    }
+
+    #[test]
+    fn test_signal_attrs() {
+        let prog = parse_str("signal clk clock(8) period=2").unwrap();
+        if let Statement::Signal { attrs, .. } = &prog.statements[0] {
+            assert_eq!(attrs.len(), 1);
+            assert_eq!(attrs[0].name, "period");
+            assert!(matches!(&attrs[0].value, Value::Number(2)));
+        } else {
+            panic!("expected Signal");
+        }
+    }
+
+    #[test]
+    fn test_signal_attrs_float() {
+        let prog = parse_str("signal cmd x(1) phase=0.5").unwrap();
+        if let Statement::Signal { attrs, .. } = &prog.statements[0] {
+            assert_eq!(attrs.len(), 1);
+            assert_eq!(attrs[0].name, "phase");
+            assert!(matches!(&attrs[0].value, Value::Float(f) if *f == 0.5));
+        } else {
+            panic!("expected Signal");
+        }
+    }
+
+    #[test]
+    fn test_head_block() {
+        let prog = parse_str(r#"head { text="hello" tick=0 }"#).unwrap();
+        let head = prog.head.unwrap();
+        assert_eq!(head.len(), 2);
+        assert_eq!(head[0].key, "text");
+        assert!(matches!(&head[0].value, Value::Str(s) if s == "hello"));
+        assert_eq!(head[1].key, "tick");
+        assert!(matches!(&head[1].value, Value::Number(0)));
+    }
+
+    #[test]
+    fn test_foot_block() {
+        let prog = parse_str(r#"foot { text="Figure 100" tock=9 }"#).unwrap();
+        let foot = prog.foot.unwrap();
+        assert_eq!(foot.len(), 2);
+    }
+
+    #[test]
+    fn test_config_block() {
+        let prog = parse_str("config { hscale=2 }").unwrap();
+        let config = prog.config.unwrap();
+        assert_eq!(config.len(), 1);
+        assert_eq!(config[0].key, "hscale");
+        assert!(matches!(&config[0].value, Value::Number(2)));
+    }
+
+    #[test]
+    fn test_mixed_order() {
+        let prog = parse_str(
+            r#"head { text="title" }
+signal clk clock(4)
+foot { text="footer" }
+config { hscale=2 }"#,
+        )
+        .unwrap();
+        assert_eq!(prog.statements.len(), 1);
+        assert!(prog.head.is_some());
+        assert!(prog.foot.is_some());
+        assert!(prog.config.is_some());
     }
 }

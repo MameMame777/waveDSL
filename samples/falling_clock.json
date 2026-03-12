@@ -1,0 +1,12 @@
+{
+  "signal": [
+    {
+      "name": "clk_p",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "name": "clk_n",
+      "wave": "NNNNNNNN"
+    }
+  ]
+}

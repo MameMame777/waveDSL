@@ -1,0 +1,6 @@
+// DDR timing with period and phase
+signal CK   clock(8) period=2
+signal CMD   x(1) data(2, "RAS") data(2, "CAS") x(3) phase=0.5
+signal ADDR  x(1) data(2, "ROW") x(2) data(2, "COL") x(1) phase=0.5
+signal DQS   z(4) low(1) high(1) low(1) high(1) low(1) z(1)
+signal DQ    z(5) data(1, "D0") data(1, "D1") data(1, "D2") data(1, "D3") z(1)

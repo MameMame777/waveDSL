@@ -40,3 +40,15 @@ fn test_complete_example() {
     let result = compile_fixture("complete_example");
     insta::assert_json_snapshot!(result);
 }
+
+#[test]
+fn test_ddr_timing() {
+    let result = compile_fixture("ddr_timing");
+    insta::assert_json_snapshot!(result);
+}
+
+#[test]
+fn test_head_foot_config() {
+    let result = compile_fixture("head_foot_config");
+    insta::assert_json_snapshot!(result);
+}

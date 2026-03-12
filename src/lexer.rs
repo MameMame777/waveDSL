@@ -160,6 +160,25 @@ impl<'a> Lexer<'a> {
         while self.pos < self.input.len() && self.input[self.pos].is_ascii_digit() {
             self.advance();
         }
+
+        // Check for float: digits followed by '.' and another digit
+        if self.pos < self.input.len()
+            && self.input[self.pos] == b'.'
+            && self.pos + 1 < self.input.len()
+            && self.input[self.pos + 1].is_ascii_digit()
+        {
+            self.advance(); // consume '.'
+            while self.pos < self.input.len() && self.input[self.pos].is_ascii_digit() {
+                self.advance();
+            }
+            let float_str = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
+            let value = float_str.parse::<f64>().map_err(|_| WaveDslError::Lexer {
+                span,
+                message: format!("invalid float: {float_str}"),
+            })?;
+            return Ok(SpannedToken::new(Token::Float(value), span));
+        }
+
         let num_str = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
         let value = num_str.parse::<u64>().map_err(|_| WaveDslError::Lexer {
             span,
@@ -180,6 +199,9 @@ impl<'a> Lexer<'a> {
             "signal" => Token::Signal,
             "group" => Token::Group,
             "repeat" => Token::Repeat,
+            "head" => Token::Head,
+            "foot" => Token::Foot,
+            "config" => Token::Config,
             _ => Token::Ident(ident),
         };
         Ok(SpannedToken::new(token, span))
@@ -251,5 +273,33 @@ mod tests {
         assert_eq!(tokens[1].token, Token::StringLit("AXI".to_string()));
         assert_eq!(tokens[2].token, Token::LBrace);
         assert_eq!(tokens[3].token, Token::RBrace);
+    }
+
+    #[test]
+    fn test_float_literal() {
+        let input = "0.5";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens[0].token, Token::Float(0.5));
+    }
+
+    #[test]
+    fn test_float_in_context() {
+        let input = "phase=0.5";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens[0].token, Token::Ident("phase".to_string()));
+        assert_eq!(tokens[1].token, Token::Eq);
+        assert_eq!(tokens[2].token, Token::Float(0.5));
+    }
+
+    #[test]
+    fn test_head_foot_config_keywords() {
+        let input = "head foot config";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize().unwrap();
+        assert_eq!(tokens[0].token, Token::Head);
+        assert_eq!(tokens[1].token, Token::Foot);
+        assert_eq!(tokens[2].token, Token::Config);
     }
 }

@@ -57,6 +57,52 @@ group "Label" {
 | `gap()` | Gap marker | `gap()` |
 | `repeat(n, expr...)` | Repeat sequence | `repeat(4, high(1) low(1))` |
 
+### Signal Attributes
+
+```
+signal CK  clock(8) period=2
+signal CMD x(1) data(2, "RAS") phase=0.5
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `period` | number | Waveform period multiplier |
+| `phase` | number | Phase offset |
+
+### Head / Foot
+
+```
+head {
+    text = "Title"
+    tick = 0
+    every = 2
+}
+
+foot {
+    text = "Figure 1"
+    tock = 9
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `text` | string | Display text |
+| `tick` | number | Tick start number |
+| `tock` | number | Tock start number |
+| `every` | number | Tick/tock display interval |
+
+### Config
+
+```
+config {
+    hscale = 2
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `hscale` | integer | Horizontal scale multiplier |
+
 ### Comments
 
 ```
@@ -154,6 +200,40 @@ signal clk_n clock(8, edge=falling)
   ]
 }
 ```
+
+### 5. DDR timing (`period` / `phase`)
+
+```
+signal CK   clock(8) period=2
+signal CMD   x(1) data(2, "RAS") data(2, "CAS") x(3) phase=0.5
+signal ADDR  x(1) data(2, "ROW") x(2) data(2, "COL") x(1) phase=0.5
+signal DQS   z(4) low(1) high(1) low(1) high(1) low(1) z(1)
+signal DQ    z(5) data(1, "D0") data(1, "D1") data(1, "D2") data(1, "D3") z(1)
+```
+
+### 6. Head / foot / config
+
+```
+head {
+    text = "WaveDrom example"
+    tick = 0
+    every = 2
+}
+
+foot {
+    text = "Figure 100"
+    tock = 9
+}
+
+config {
+    hscale = 2
+}
+
+signal clk clock(8)
+signal bus x(2) data(4, "PAYLOAD") x(2)
+```
+
+See `samples/` directory for all input/output pairs.
 
 ## Specification
 

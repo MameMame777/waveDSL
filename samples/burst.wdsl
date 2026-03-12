@@ -1,0 +1,4 @@
+// バースト転送
+signal clk   clock(18)
+signal burst x(1) repeat(4, data(2, "0xAB") data(2, "0xCD")) x(1)
+signal valid low(1) repeat(4, high(4)) low(1)
