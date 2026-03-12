@@ -1,0 +1,6 @@
+// Test: const + include combined
+const N = 4
+
+include "shared_signals.wdsl"
+
+signal bus data($N, "W0 W1 W2 W3")

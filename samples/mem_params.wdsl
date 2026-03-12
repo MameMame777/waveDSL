@@ -1,0 +1,4 @@
+// Shared constants for memory interface signals
+const TOTAL = 8
+const LATENCY = 2
+const BURST = 4

@@ -25,7 +25,7 @@ pub struct SignalAttr {
     pub span: Span,
 }
 
-/// A statement is either a signal declaration or a group.
+/// A statement is either a signal declaration, a group, or a const declaration.
 #[derive(Debug, Clone)]
 pub enum Statement {
     Signal {
@@ -37,6 +37,11 @@ pub enum Statement {
     Group {
         name: Option<String>,
         statements: Vec<Statement>,
+        span: Span,
+    },
+    ConstDecl {
+        name: String,
+        value: Value,
         span: Span,
     },
 }
@@ -70,4 +75,5 @@ pub enum Value {
     Float(f64),
     Str(String),
     Enum(String),
+    VarRef(String),
 }

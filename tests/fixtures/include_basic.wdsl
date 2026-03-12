@@ -1,0 +1,4 @@
+// Test: include directive
+include "shared_signals.wdsl"
+
+signal bus data(4, "A B C D")

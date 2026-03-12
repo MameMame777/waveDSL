@@ -1,0 +1,16 @@
+// Constants allow reusing values across signals
+const CYCLES = 8
+const HALF = 4
+const SCALE = 2
+
+config {
+    hscale = $SCALE
+}
+
+signal clk     clock($CYCLES)
+signal en      low($HALF) high($HALF)
+signal bus     data($CYCLES, "D0 D1 D2 D3 D4 D5 D6 D7")
+
+head {
+    text = "Const Variables Example"
+}

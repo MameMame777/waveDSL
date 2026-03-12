@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::*;
 use crate::error::{Span, WaveDslError};
 
@@ -6,6 +8,12 @@ const KNOWN_FUNCTIONS: &[&str] = &["clock", "high", "low", "data", "x", "z", "ga
 const VALID_SIGNAL_ATTRS: &[&str] = &["period", "phase"];
 const VALID_HEAD_FOOT_KEYS: &[&str] = &["text", "tick", "tock", "every"];
 const VALID_CONFIG_KEYS: &[&str] = &["hscale"];
+
+/// Resolve constants and then validate the program.
+pub fn resolve_and_validate(program: &mut Program) -> Result<(), Vec<WaveDslError>> {
+    resolve_constants(program)?;
+    validate(program)
+}
 
 pub fn validate(program: &Program) -> Result<(), Vec<WaveDslError>> {
     let mut errors = Vec::new();
@@ -63,6 +71,9 @@ fn validate_statement(stmt: &Statement, group_depth: usize, errors: &mut Vec<Wav
             for stmt in statements {
                 validate_statement(stmt, new_depth, errors);
             }
+        }
+        Statement::ConstDecl { .. } => {
+            // Already resolved; nothing to validate here.
         }
     }
 }
@@ -300,6 +311,167 @@ fn validate_config(pairs: &[KeyValue], errors: &mut Vec<WaveDslError>) {
                 message: "config.hscale must be an integer".to_string(),
             });
         }
+    }
+}
+
+// --- Constant resolution ---
+
+const RESERVED_CONST_NAMES: &[&str] = &[
+    "signal", "group", "repeat", "head", "foot", "config", "const", "include",
+    "clock", "high", "low", "data", "x", "z", "gap",
+    "rising", "falling",
+];
+
+/// Resolve all `const` declarations and substitute `$NAME` references.
+///
+/// Constants are resolved in declaration order (no forward references).
+/// After resolution, `VarRef` nodes are replaced with the resolved `Value`.
+fn resolve_constants(program: &mut Program) -> Result<(), Vec<WaveDslError>> {
+    let mut errors = Vec::new();
+    let mut table: HashMap<String, Value> = HashMap::new();
+
+    // First pass: collect const declarations in order
+    for stmt in &program.statements {
+        if let Statement::ConstDecl { name, value, span } = stmt {
+            if RESERVED_CONST_NAMES.contains(&name.as_str()) {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: format!("'{}' is reserved and cannot be used as a constant name", name),
+                });
+                continue;
+            }
+            if table.contains_key(name) {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: format!("constant '{}' is already defined", name),
+                });
+                continue;
+            }
+            // Resolve the value itself (it may reference earlier constants)
+            match resolve_value(value, &table, *span) {
+                Ok(resolved) => {
+                    table.insert(name.clone(), resolved);
+                }
+                Err(e) => errors.push(e),
+            }
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+
+    // Second pass: substitute VarRef in all statements, attrs, head/foot/config
+    for stmt in &mut program.statements {
+        resolve_in_statement(stmt, &table, &mut errors);
+    }
+    if let Some(head) = &mut program.head {
+        resolve_in_kv_pairs(head, &table, &mut errors);
+    }
+    if let Some(foot) = &mut program.foot {
+        resolve_in_kv_pairs(foot, &table, &mut errors);
+    }
+    if let Some(config) = &mut program.config {
+        resolve_in_kv_pairs(config, &table, &mut errors);
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn resolve_value(
+    value: &Value,
+    table: &HashMap<String, Value>,
+    span: Span,
+) -> Result<Value, WaveDslError> {
+    match value {
+        Value::VarRef(name) => {
+            table.get(name).cloned().ok_or(WaveDslError::Semantic {
+                span,
+                message: format!("undefined constant '${}'", name),
+            })
+        }
+        other => Ok(other.clone()),
+    }
+}
+
+fn resolve_in_statement(
+    stmt: &mut Statement,
+    table: &HashMap<String, Value>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    match stmt {
+        Statement::Signal {
+            sequence, attrs, ..
+        } => {
+            for expr in sequence {
+                resolve_in_wave_expr(expr, table, errors);
+            }
+            for attr in attrs {
+                resolve_in_value(&mut attr.value, table, attr.span, errors);
+            }
+        }
+        Statement::Group { statements, .. } => {
+            for s in statements {
+                resolve_in_statement(s, table, errors);
+            }
+        }
+        Statement::ConstDecl { .. } => {}
+    }
+}
+
+fn resolve_in_wave_expr(
+    expr: &mut WaveExpr,
+    table: &HashMap<String, Value>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    match expr {
+        WaveExpr::Call { args, span, .. } => {
+            for arg in args {
+                let (val, arg_span) = match arg {
+                    Arg::Positional(v, s) => (v, *s),
+                    Arg::Keyword(_, v, s) => (v, *s),
+                };
+                resolve_in_value(val, table, arg_span, errors);
+            }
+            // Also check the span for unresolved refs at call level
+            let _ = span;
+        }
+        WaveExpr::Repeat { sequence, .. } => {
+            for e in sequence {
+                resolve_in_wave_expr(e, table, errors);
+            }
+        }
+    }
+}
+
+fn resolve_in_value(
+    value: &mut Value,
+    table: &HashMap<String, Value>,
+    span: Span,
+    errors: &mut Vec<WaveDslError>,
+) {
+    if let Value::VarRef(name) = value {
+        match table.get(name.as_str()) {
+            Some(resolved) => *value = resolved.clone(),
+            None => errors.push(WaveDslError::Semantic {
+                span,
+                message: format!("undefined constant '${}'", name),
+            }),
+        }
+    }
+}
+
+fn resolve_in_kv_pairs(
+    pairs: &mut [KeyValue],
+    table: &HashMap<String, Value>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    for kv in pairs {
+        resolve_in_value(&mut kv.value, table, kv.span, errors);
     }
 }
 

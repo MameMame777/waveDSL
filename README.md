@@ -234,6 +234,7 @@ signal bus x(2) data(4, "PAYLOAD") x(2)
 ```
 
 See `samples/` directory for all input/output pairs.
+See [Sample Gallery](docs/sample-gallery.md) for all samples with source, JSON, and rendered waveforms.
 
 ## Specification
 

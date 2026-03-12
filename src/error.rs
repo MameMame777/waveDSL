@@ -29,4 +29,7 @@ pub enum WaveDslError {
 
     #[error("{span}: semantic error: {message}")]
     Semantic { span: Span, message: String },
+
+    #[error("preprocessor error: {message}")]
+    Preprocessor { message: String },
 }

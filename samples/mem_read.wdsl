@@ -1,0 +1,21 @@
+// Memory read transaction using shared parameters
+include "mem_params.wdsl"
+
+config {
+    hscale = 2
+}
+
+head {
+    text = "Memory Read Transaction"
+    tick  = 1
+}
+
+signal clk   clock($TOTAL)
+signal cmd   low($LATENCY) data(1, "RD") low(5)
+signal addr  low($LATENCY) data(1, "A0") low(5)
+signal rdata low($LATENCY) low($LATENCY) data($BURST, "D0 D1 D2 D3")
+signal valid low($LATENCY) low($LATENCY) high($BURST)
+
+foot {
+    text = "const + include demo"
+}

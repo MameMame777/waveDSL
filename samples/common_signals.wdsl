@@ -1,0 +1,3 @@
+// Common signal definitions shared across designs
+signal clk  clock(8)
+signal rstn low(2) high(6)

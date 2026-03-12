@@ -1,0 +1,9 @@
+// Include example: reuse common signals from another file
+include "common_signals.wdsl"
+
+signal bus   low(2) data(4, "A B C D") low(2)
+signal valid low(2) high(4) low(2)
+
+head {
+    text = "Include Example"
+}

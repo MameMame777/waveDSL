@@ -1,0 +1,25 @@
+{
+  "config": {
+    "hscale": 2
+  },
+  "head": {
+    "text": "Const Variables Example"
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "name": "en",
+      "wave": "0...1..."
+    },
+    {
+      "data": [
+        "D0 D1 D2 D3 D4 D5 D6 D7"
+      ],
+      "name": "bus",
+      "wave": "=......."
+    }
+  ]
+}

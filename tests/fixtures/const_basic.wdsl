@@ -1,0 +1,6 @@
+// Test: const declarations and $NAME references
+const CYCLES = 8
+const HALF = 4
+
+signal clk  clock($CYCLES)
+signal en   low($HALF) high($HALF)

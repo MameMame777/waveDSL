@@ -9,6 +9,8 @@ pub enum Token {
     Head,
     Foot,
     Config,
+    Const,
+    Include,
 
     // Delimiters
     LParen,
@@ -25,6 +27,9 @@ pub enum Token {
 
     // Identifier (signal names, function names, enum values)
     Ident(String),
+
+    // Variable reference: $NAME
+    DollarIdent(String),
 
     Eof,
 }

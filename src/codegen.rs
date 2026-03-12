@@ -35,6 +35,9 @@ fn generate_statements(statements: &[Statement]) -> Vec<JsonValue> {
             } => {
                 result.push(generate_group(name.as_deref(), statements));
             }
+            Statement::ConstDecl { .. } => {
+                // Constants are resolved in semantic phase; skip in codegen.
+            }
         }
     }
     result
@@ -221,6 +224,7 @@ fn value_to_json(value: &Value) -> JsonValue {
         Value::Float(f) => json!(*f),
         Value::Str(s) => json!(s),
         Value::Enum(s) => json!(s),
+        Value::VarRef(_) => unreachable!("VarRef should be resolved before codegen"),
     }
 }
 

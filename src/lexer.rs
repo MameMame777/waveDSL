@@ -103,6 +103,7 @@ impl<'a> Lexer<'a> {
             }
             b'"' => self.read_string(span),
             b'0'..=b'9' => self.read_number(span),
+            b'$' => self.read_dollar_ident(span),
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.read_ident(span),
             _ => Err(WaveDslError::Lexer {
                 span,
@@ -187,6 +188,28 @@ impl<'a> Lexer<'a> {
         Ok(SpannedToken::new(Token::Number(value), span))
     }
 
+    fn read_dollar_ident(&mut self, span: Span) -> Result<SpannedToken, WaveDslError> {
+        self.advance(); // consume '$'
+        if self.pos >= self.input.len()
+            || !(self.input[self.pos].is_ascii_alphabetic() || self.input[self.pos] == b'_')
+        {
+            return Err(WaveDslError::Lexer {
+                span,
+                message: "expected identifier after '$'".to_string(),
+            });
+        }
+        let start = self.pos;
+        while self.pos < self.input.len()
+            && (self.input[self.pos].is_ascii_alphanumeric() || self.input[self.pos] == b'_')
+        {
+            self.advance();
+        }
+        let name = std::str::from_utf8(&self.input[start..self.pos])
+            .unwrap()
+            .to_string();
+        Ok(SpannedToken::new(Token::DollarIdent(name), span))
+    }
+
     fn read_ident(&mut self, span: Span) -> Result<SpannedToken, WaveDslError> {
         let start = self.pos;
         while self.pos < self.input.len()
@@ -202,6 +225,8 @@ impl<'a> Lexer<'a> {
             "head" => Token::Head,
             "foot" => Token::Foot,
             "config" => Token::Config,
+            "const" => Token::Const,
+            "include" => Token::Include,
             _ => Token::Ident(ident),
         };
         Ok(SpannedToken::new(token, span))

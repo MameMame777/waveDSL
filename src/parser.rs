@@ -28,6 +28,9 @@ impl Parser {
                 Token::Config => {
                     config = Some(self.parse_kv_block()?);
                 }
+                Token::Const => {
+                    statements.push(self.parse_const_decl()?);
+                }
                 _ => {
                     statements.push(self.parse_statement()?);
                 }
@@ -86,6 +89,15 @@ impl Parser {
                 ),
             }),
         }
+    }
+
+    fn parse_const_decl(&mut self) -> Result<Statement, WaveDslError> {
+        let span = self.span();
+        self.advance(); // consume 'const'
+        let name = self.expect_ident()?;
+        self.expect(&Token::Eq)?;
+        let value = self.parse_value()?;
+        Ok(Statement::ConstDecl { name, value, span })
     }
 
     fn parse_signal(&mut self) -> Result<Statement, WaveDslError> {
@@ -268,6 +280,11 @@ impl Parser {
                 let s = s.clone();
                 self.advance();
                 Ok(Value::Enum(s))
+            }
+            Token::DollarIdent(s) => {
+                let s = s.clone();
+                self.advance();
+                Ok(Value::VarRef(s))
             }
             _ => Err(WaveDslError::Parser {
                 span: self.span(),

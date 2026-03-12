@@ -1,0 +1,3 @@
+// Shared signals for include test
+signal clk  clock(4)
+signal rstn low(1) high(3)

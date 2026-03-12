@@ -1,0 +1,43 @@
+{
+  "config": {
+    "hscale": 2
+  },
+  "foot": {
+    "text": "const + include demo"
+  },
+  "head": {
+    "text": "Memory Read Transaction",
+    "tick": 1
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "RD"
+      ],
+      "name": "cmd",
+      "wave": "0.=0...."
+    },
+    {
+      "data": [
+        "A0"
+      ],
+      "name": "addr",
+      "wave": "0.=0...."
+    },
+    {
+      "data": [
+        "D0 D1 D2 D3"
+      ],
+      "name": "rdata",
+      "wave": "0.0.=..."
+    },
+    {
+      "name": "valid",
+      "wave": "0.0.1..."
+    }
+  ]
+}

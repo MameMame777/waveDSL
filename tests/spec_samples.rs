@@ -3,7 +3,8 @@ use std::fs;
 fn compile_fixture(name: &str) -> serde_json::Value {
     let path = format!("tests/fixtures/{}.wdsl", name);
     let input = fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {}", path, e));
-    wavedsl::compile(&input).unwrap_or_else(|errs| {
+    let file_path = std::path::PathBuf::from(&path);
+    wavedsl::compile(&input, Some(&file_path)).unwrap_or_else(|errs| {
         for err in &errs {
             eprintln!("{}", err);
         }
@@ -50,5 +51,23 @@ fn test_ddr_timing() {
 #[test]
 fn test_head_foot_config() {
     let result = compile_fixture("head_foot_config");
+    insta::assert_json_snapshot!(result);
+}
+
+#[test]
+fn test_const_basic() {
+    let result = compile_fixture("const_basic");
+    insta::assert_json_snapshot!(result);
+}
+
+#[test]
+fn test_include_basic() {
+    let result = compile_fixture("include_basic");
+    insta::assert_json_snapshot!(result);
+}
+
+#[test]
+fn test_const_include() {
+    let result = compile_fixture("const_include");
     insta::assert_json_snapshot!(result);
 }

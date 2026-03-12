@@ -31,7 +31,7 @@ fn main() {
         }
     };
 
-    match wavedsl::compile(&input) {
+    match wavedsl::compile(&input, cli.input.as_deref()) {
         Ok(json) => {
             let text = serde_json::to_string_pretty(&json).unwrap();
             match &cli.output {

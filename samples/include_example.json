@@ -1,0 +1,26 @@
+{
+  "head": {
+    "text": "Include Example"
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "name": "rstn",
+      "wave": "0.1....."
+    },
+    {
+      "data": [
+        "A B C D"
+      ],
+      "name": "bus",
+      "wave": "0.=...0."
+    },
+    {
+      "name": "valid",
+      "wave": "0.1...0."
+    }
+  ]
+}
