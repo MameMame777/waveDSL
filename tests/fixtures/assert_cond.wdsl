@@ -1,0 +1,9 @@
+// when/then condition-based assertions
+signal clk    clock(8)
+signal valid  low(2) high(4) low(2)
+signal d_bus  x(2) data(4, "0xAB") x(2)
+
+assert "valid_data_combo" clock=clk {
+    when valid == high then d_bus != x
+    when $rose(valid) then ##2 d_bus != x
+}

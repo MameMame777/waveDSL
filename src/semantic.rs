@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::*;
 use crate::error::{Span, WaveDslError};
@@ -17,8 +17,9 @@ pub fn resolve_and_validate(program: &mut Program) -> Result<(), Vec<WaveDslErro
 
 pub fn validate(program: &Program) -> Result<(), Vec<WaveDslError>> {
     let mut errors = Vec::new();
+    let signal_names = collect_signal_names(&program.statements);
     for stmt in &program.statements {
-        validate_statement(stmt, 0, &mut errors);
+        validate_statement(stmt, 0, &signal_names, &mut errors);
     }
     if let Some(head) = &program.head {
         validate_head_foot("head", head, &mut errors);
@@ -36,7 +37,34 @@ pub fn validate(program: &Program) -> Result<(), Vec<WaveDslError>> {
     }
 }
 
-fn validate_statement(stmt: &Statement, group_depth: usize, errors: &mut Vec<WaveDslError>) {
+fn collect_signal_names(stmts: &[Statement]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for stmt in stmts {
+        collect_from_stmt(stmt, &mut names);
+    }
+    names
+}
+
+fn collect_from_stmt(stmt: &Statement, names: &mut HashSet<String>) {
+    match stmt {
+        Statement::Signal { name, .. } => { names.insert(name.clone()); }
+        Statement::Group { statements, .. } => {
+            for s in statements { collect_from_stmt(s, names); }
+        }
+        Statement::ConstDecl { .. } => {}
+        Statement::AssertBlock(block) => {
+            // Wave-body assert signals are also valid signal references
+            // (e.g. referenceable from when/then blocks).
+            if let AssertBody::Wave(signals) = &block.body {
+                for s in signals {
+                    names.insert(s.name.clone());
+                }
+            }
+        }
+    }
+}
+
+fn validate_statement(stmt: &Statement, group_depth: usize, signal_names: &HashSet<String>, errors: &mut Vec<WaveDslError>) {
     match stmt {
         Statement::Signal {
             name,
@@ -69,11 +97,12 @@ fn validate_statement(stmt: &Statement, group_depth: usize, errors: &mut Vec<Wav
                 });
             }
             for stmt in statements {
-                validate_statement(stmt, new_depth, errors);
+                validate_statement(stmt, new_depth, signal_names, errors);
             }
         }
-        Statement::ConstDecl { .. } => {
-            // Already resolved; nothing to validate here.
+        Statement::ConstDecl { .. } => {}
+        Statement::AssertBlock(block) => {
+            validate_assert_block(block, signal_names, errors);
         }
     }
 }
@@ -314,10 +343,103 @@ fn validate_config(pairs: &[KeyValue], errors: &mut Vec<WaveDslError>) {
     }
 }
 
+// --- Assert block validation ---
+
+fn validate_assert_block(
+    block: &AssertBlock,
+    signal_names: &HashSet<String>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    if !block.clock.is_empty() && !signal_names.contains(&block.clock) {
+        errors.push(WaveDslError::Semantic {
+            span: block.span,
+            message: format!("assert clock '{}' is not defined as a signal", block.clock),
+        });
+    }
+    match &block.body {
+        AssertBody::Wave(signals) => {
+            for sig in signals {
+                for expr in &sig.sequence {
+                    validate_wave_expr(expr, errors);
+                }
+            }
+        }
+        AssertBody::Conditions(stmts) => {
+            for when_stmt in stmts {
+                validate_cond_expr(&when_stmt.antecedent, signal_names, errors);
+                validate_seq_expr(&when_stmt.consequent, signal_names, errors);
+            }
+        }
+    }
+}
+
+fn validate_cond_expr(
+    expr: &CondExpr,
+    signal_names: &HashSet<String>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    match expr {
+        CondExpr::Compare { signal, span, .. } => {
+            if !signal_names.contains(signal) {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: format!("signal '{}' used in assert is not defined", signal),
+                });
+            }
+        }
+        CondExpr::SysFunc { signal, span, .. } => {
+            if !signal_names.contains(signal) {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: format!("signal '{}' used in assert is not defined", signal),
+                });
+            }
+        }
+        CondExpr::And(l, r) | CondExpr::Or(l, r) => {
+            validate_cond_expr(l, signal_names, errors);
+            validate_cond_expr(r, signal_names, errors);
+        }
+    }
+}
+
+fn validate_seq_expr(
+    expr: &SeqExpr,
+    signal_names: &HashSet<String>,
+    errors: &mut Vec<WaveDslError>,
+) {
+    match expr {
+        SeqExpr::Delay { expr, .. } => validate_seq_expr(expr, signal_names, errors),
+        SeqExpr::Cond(c) => validate_cond_expr(c, signal_names, errors),
+        SeqExpr::RepeatConsec { expr, count, span } => {
+            if *count < 1 {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: "repeat count must be >= 1".to_string(),
+                });
+            }
+            validate_seq_expr(expr, signal_names, errors);
+        }
+        SeqExpr::RepeatGoto { expr, count, span } => {
+            if *count < 1 {
+                errors.push(WaveDslError::Semantic {
+                    span: *span,
+                    message: "goto repeat count must be >= 1".to_string(),
+                });
+            }
+            validate_seq_expr(expr, signal_names, errors);
+        }
+        SeqExpr::And(l, r) | SeqExpr::Or(l, r) => {
+            validate_seq_expr(l, signal_names, errors);
+            validate_seq_expr(r, signal_names, errors);
+        }
+    }
+}
+
 // --- Constant resolution ---
 
 const RESERVED_CONST_NAMES: &[&str] = &[
     "signal", "group", "repeat", "head", "foot", "config", "const", "include",
+    "assert", "when", "then", "and", "or",
     "clock", "high", "low", "data", "x", "z", "gap",
     "rising", "falling",
 ];
@@ -420,6 +542,15 @@ fn resolve_in_statement(
             }
         }
         Statement::ConstDecl { .. } => {}
+        Statement::AssertBlock(block) => {
+            if let AssertBody::Wave(signals) = &mut block.body {
+                for sig in signals {
+                    for expr in &mut sig.sequence {
+                        resolve_in_wave_expr(expr, table, errors);
+                    }
+                }
+            }
+        }
     }
 }
 

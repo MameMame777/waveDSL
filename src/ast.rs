@@ -25,7 +25,7 @@ pub struct SignalAttr {
     pub span: Span,
 }
 
-/// A statement is either a signal declaration, a group, or a const declaration.
+/// A statement is a signal, group, const declaration, or assert block.
 #[derive(Debug, Clone)]
 pub enum Statement {
     Signal {
@@ -44,6 +44,113 @@ pub enum Statement {
         value: Value,
         span: Span,
     },
+    AssertBlock(AssertBlock),
+}
+
+// ─── Assert block ────────────────────────────────────────────────────────────
+
+/// An assert block with either wave-pattern body or when/then conditions.
+#[derive(Debug, Clone)]
+pub struct AssertBlock {
+    pub name: String,
+    pub clock: String,
+    pub body: AssertBody,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum AssertBody {
+    /// Signals whose waveforms define the expected pattern.
+    Wave(Vec<AssertSignal>),
+    /// Implication conditions: `when <cond> then <seq>`.
+    Conditions(Vec<WhenStmt>),
+}
+
+/// A signal declaration inside a wave-body assert block.
+#[derive(Debug, Clone)]
+pub struct AssertSignal {
+    pub name: String,
+    pub sequence: Vec<WaveExpr>,
+    pub span: Span,
+}
+
+/// One `when <antecedent> then <consequent>` statement.
+#[derive(Debug, Clone)]
+pub struct WhenStmt {
+    pub antecedent: CondExpr,
+    pub consequent: SeqExpr,
+    pub span: Span,
+}
+
+// ─── Condition expressions ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub enum CondExpr {
+    Compare {
+        signal: String,
+        op: CmpOp,
+        state: StateVal,
+        span: Span,
+    },
+    SysFunc {
+        func: SysFunc,
+        signal: String,
+        span: Span,
+    },
+    And(Box<CondExpr>, Box<CondExpr>),
+    Or(Box<CondExpr>, Box<CondExpr>),
+}
+
+// ─── Sequence expressions ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub enum SeqExpr {
+    /// `##N <expr>`
+    Delay {
+        cycles: u64,
+        expr: Box<SeqExpr>,
+        span: Span,
+    },
+    /// A condition used as a one-cycle sequence step.
+    Cond(CondExpr),
+    /// `<expr>[*N]` — consecutive repetition.
+    RepeatConsec {
+        expr: Box<SeqExpr>,
+        count: u64,
+        span: Span,
+    },
+    /// `<expr>[->N]` — goto repetition.
+    RepeatGoto {
+        expr: Box<SeqExpr>,
+        count: u64,
+        span: Span,
+    },
+    And(Box<SeqExpr>, Box<SeqExpr>),
+    Or(Box<SeqExpr>, Box<SeqExpr>),
+}
+
+// ─── Enumerations ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CmpOp {
+    Eq,
+    Ne,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StateVal {
+    High,
+    Low,
+    Data,
+    X,
+    Z,
+}
+
+#[derive(Debug, Clone)]
+pub enum SysFunc {
+    Rose,
+    Fell,
+    Stable,
 }
 
 /// A wave expression: a built-in function call or repeat.

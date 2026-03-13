@@ -1,0 +1,35 @@
+{
+  "head": {
+    "text": "SPI Protocol Verification",
+    "tick": 0
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "data": [
+        "ACK",
+        "0x3C"
+      ],
+      "name": "miso",
+      "wave": "x=.=...x"
+    },
+    [
+      "spi_transaction",
+      {
+        "name": "cs_n",
+        "wave": "10.....1"
+      },
+      {
+        "data": [
+          "CMD",
+          "0xA5"
+        ],
+        "name": "mosi",
+        "wave": "x=.=...x"
+      }
+    ]
+  ]
+}

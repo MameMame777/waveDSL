@@ -1,0 +1,23 @@
+---
+source: tests/spec_samples.rs
+expression: json
+---
+{
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    {
+      "name": "valid",
+      "wave": "0.1...0."
+    },
+    {
+      "data": [
+        "0xAB"
+      ],
+      "name": "d_bus",
+      "wave": "x.=...x."
+    }
+  ]
+}

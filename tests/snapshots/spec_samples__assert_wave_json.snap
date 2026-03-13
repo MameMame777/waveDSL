@@ -1,0 +1,26 @@
+---
+source: tests/spec_samples.rs
+expression: json
+---
+{
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPP"
+    },
+    [
+      "burst_protocol",
+      {
+        "name": "valid",
+        "wave": "0.1...0."
+      },
+      {
+        "data": [
+          "0xAB"
+        ],
+        "name": "data",
+        "wave": "x.=...x."
+      }
+    ]
+  ]
+}

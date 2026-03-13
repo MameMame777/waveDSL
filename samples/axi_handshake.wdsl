@@ -1,0 +1,35 @@
+// AXI4 write channel handshake — timing diagram + SystemVerilog assertions
+//
+// Demonstrates:
+//   - Approach A: timing pattern of a valid/ready handshake
+//   - Approach B: AXI4 protocol rules using `and` compound conditions
+//
+// AXI4 handshake rule: the initiator holds AWVALID until AWREADY is seen.
+
+head {
+    text = "AXI4 Write Handshake"
+    tick = 0
+}
+
+signal clk     clock(10)
+signal awvalid low(2) high(4) low(4)
+signal awready low(4) high(1) low(5)
+signal wvalid  low(2) high(4) low(4)
+signal wready  low(4) high(2) low(4)
+
+// Approach A: address channel handshake timing pattern.
+// Trigger: $rose(awvalid). Checks that awready responds while awvalid is held.
+assert "aw_handshake" clock=clk {
+    signal awvalid low(2) high(4) low(4)
+    signal awready low(4) high(1) low(5)
+}
+
+// Approach B: AXI4 write protocol rules.
+assert "axi_write_rules" clock=clk {
+    // RULE 1: At the handshake point, write data (wvalid) must also be asserted
+    when awvalid == high and awready == high then wvalid == high
+    // RULE 2: After the address handshake, write data acceptance follows within 1 cycle
+    when awvalid == high and awready == high then ##1 wready == high
+    // RULE 3: Once wvalid is asserted, it must hold until wready is seen
+    when $rose(wvalid) then wvalid == high [*4]
+}

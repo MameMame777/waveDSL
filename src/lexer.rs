@@ -99,7 +99,59 @@ impl<'a> Lexer<'a> {
             }
             b'=' => {
                 self.advance();
-                Ok(SpannedToken::new(Token::Eq, span))
+                if self.peek() == Some(b'=') {
+                    self.advance();
+                    Ok(SpannedToken::new(Token::EqEq, span))
+                } else {
+                    Ok(SpannedToken::new(Token::Eq, span))
+                }
+            }
+            b'!' => {
+                self.advance();
+                if self.peek() == Some(b'=') {
+                    self.advance();
+                    Ok(SpannedToken::new(Token::BangEq, span))
+                } else {
+                    Err(WaveDslError::Lexer {
+                        span,
+                        message: "unexpected '!'; did you mean '!='?".to_string(),
+                    })
+                }
+            }
+            b'#' => {
+                self.advance();
+                if self.peek() == Some(b'#') {
+                    self.advance();
+                    Ok(SpannedToken::new(Token::PoundPound, span))
+                } else {
+                    Err(WaveDslError::Lexer {
+                        span,
+                        message: "unexpected '#'; did you mean '##'?".to_string(),
+                    })
+                }
+            }
+            b'[' => {
+                self.advance();
+                if self.peek() == Some(b'*') {
+                    self.advance();
+                    Ok(SpannedToken::new(Token::LBracketStar, span))
+                } else if self.peek() == Some(b'-')
+                    && self.pos + 1 < self.input.len()
+                    && self.input[self.pos + 1] == b'>'
+                {
+                    self.advance(); // consume '-'
+                    self.advance(); // consume '>'
+                    Ok(SpannedToken::new(Token::LBracketArrow, span))
+                } else {
+                    Err(WaveDslError::Lexer {
+                        span,
+                        message: "unexpected '['; expected '[*' or '[->'.".to_string(),
+                    })
+                }
+            }
+            b']' => {
+                self.advance();
+                Ok(SpannedToken::new(Token::RBracket, span))
             }
             b'"' => self.read_string(span),
             b'0'..=b'9' => self.read_number(span),
@@ -219,14 +271,19 @@ impl<'a> Lexer<'a> {
         }
         let ident = std::str::from_utf8(&self.input[start..self.pos]).unwrap().to_string();
         let token = match ident.as_str() {
-            "signal" => Token::Signal,
-            "group" => Token::Group,
-            "repeat" => Token::Repeat,
-            "head" => Token::Head,
-            "foot" => Token::Foot,
-            "config" => Token::Config,
-            "const" => Token::Const,
+            "signal"  => Token::Signal,
+            "group"   => Token::Group,
+            "repeat"  => Token::Repeat,
+            "head"    => Token::Head,
+            "foot"    => Token::Foot,
+            "config"  => Token::Config,
+            "const"   => Token::Const,
             "include" => Token::Include,
+            "assert"  => Token::Assert,
+            "when"    => Token::When,
+            "then"    => Token::Then,
+            "and"     => Token::And,
+            "or"      => Token::Or,
             _ => Token::Ident(ident),
         };
         Ok(SpannedToken::new(token, span))

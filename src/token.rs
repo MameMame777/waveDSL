@@ -2,7 +2,7 @@ use crate::error::Span;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    // Keywords
+    // Keywords — wave declarations
     Signal,
     Group,
     Repeat,
@@ -12,13 +12,26 @@ pub enum Token {
     Const,
     Include,
 
+    // Keywords — assertions
+    Assert,
+    When,
+    Then,
+    And,
+    Or,
+
     // Delimiters
     LParen,
     RParen,
     LBrace,
     RBrace,
     Comma,
-    Eq,
+    Eq,         // =   (keyword-arg assignment)
+    EqEq,       // ==  (condition comparison)
+    BangEq,     // !=  (condition comparison)
+    PoundPound,    // ## (SVA delay)
+    LBracketStar,  // [* (consecutive repeat)
+    LBracketArrow, // [-> (goto repeat)
+    RBracket,      // ]
 
     // Literals
     Number(u64),

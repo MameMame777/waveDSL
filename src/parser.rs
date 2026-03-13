@@ -81,10 +81,11 @@ impl Parser {
         match self.peek() {
             Token::Signal => self.parse_signal(),
             Token::Group => self.parse_group(),
+            Token::Assert => self.parse_assert_block(),
             _ => Err(WaveDslError::Parser {
                 span: self.span(),
                 message: format!(
-                    "expected 'signal' or 'group', found {:?}",
+                    "expected 'signal', 'group', or 'assert', found {:?}",
                     self.peek()
                 ),
             }),
@@ -353,6 +354,230 @@ impl Parser {
         }
         self.expect(&Token::RBrace)?;
         Ok(pairs)
+    }
+
+    // -------------------------------------------------------------------------
+    // Assert block parsing
+    // -------------------------------------------------------------------------
+
+    fn parse_assert_block(&mut self) -> Result<Statement, WaveDslError> {
+        let span = self.span();
+        self.advance(); // consume 'assert'
+
+        // Optional block name (string literal)
+        let name = if let Token::StringLit(_) = self.peek() {
+            if let Token::StringLit(s) = self.advance().token.clone() {
+                s
+            } else {
+                unreachable!()
+            }
+        } else {
+            String::new()
+        };
+
+        // Required: clock=<ident>
+        let clock = {
+            let s = self.span();
+            match self.peek().clone() {
+                Token::Ident(k) if k == "clock" => {
+                    self.advance(); // consume 'clock'
+                    self.expect(&Token::Eq)?;
+                    self.expect_ident()?
+                }
+                other => {
+                    return Err(WaveDslError::Parser {
+                        span: s,
+                        message: format!("expected 'clock=<signal>', found {:?}", other),
+                    });
+                }
+            }
+        };
+
+        self.expect(&Token::LBrace)?;
+
+        let body = match self.peek() {
+            Token::RBrace | Token::Eof => AssertBody::Wave(Vec::new()),
+            Token::Signal => {
+                let mut signals = Vec::new();
+                while matches!(self.peek(), Token::Signal) {
+                    let sig_span = self.span();
+                    self.advance(); // consume 'signal'
+                    let sig_name = self.expect_ident()?;
+                    let sequence = self.parse_sequence()?;
+                    signals.push(AssertSignal { name: sig_name, sequence, span: sig_span });
+                }
+                AssertBody::Wave(signals)
+            }
+            Token::When => {
+                let mut stmts = Vec::new();
+                while matches!(self.peek(), Token::When) {
+                    stmts.push(self.parse_when_stmt()?);
+                }
+                AssertBody::Conditions(stmts)
+            }
+            _ => {
+                return Err(WaveDslError::Parser {
+                    span: self.span(),
+                    message: format!(
+                        "expected 'signal' (wave body) or 'when' (condition body), found {:?}",
+                        self.peek()
+                    ),
+                });
+            }
+        };
+
+        self.expect(&Token::RBrace)?;
+
+        Ok(Statement::AssertBlock(AssertBlock { name, clock, body, span }))
+    }
+
+    fn parse_when_stmt(&mut self) -> Result<WhenStmt, WaveDslError> {
+        let span = self.span();
+        self.advance(); // consume 'when'
+        let antecedent = self.parse_cond_expr()?;
+        if !matches!(self.peek(), Token::Then) {
+            return Err(WaveDslError::Parser {
+                span: self.span(),
+                message: format!("expected 'then', found {:?}", self.peek()),
+            });
+        }
+        self.advance(); // consume 'then'
+        let consequent = self.parse_seq_expr()?;
+        Ok(WhenStmt { antecedent, consequent, span })
+    }
+
+    // ─── Condition expression ─────────────────────────────────────────────────
+
+    fn parse_cond_expr(&mut self) -> Result<CondExpr, WaveDslError> {
+        let left = self.parse_cond_primary()?;
+        match self.peek() {
+            Token::And => {
+                self.advance();
+                let right = self.parse_cond_expr()?;
+                Ok(CondExpr::And(Box::new(left), Box::new(right)))
+            }
+            Token::Or => {
+                self.advance();
+                let right = self.parse_cond_expr()?;
+                Ok(CondExpr::Or(Box::new(left), Box::new(right)))
+            }
+            _ => Ok(left),
+        }
+    }
+
+    fn parse_cond_primary(&mut self) -> Result<CondExpr, WaveDslError> {
+        let span = self.span();
+        if let Token::DollarIdent(func_name) = self.peek().clone() {
+            let func_name = func_name.clone();
+            self.advance();
+            let func = match func_name.as_str() {
+                "rose"   => SysFunc::Rose,
+                "fell"   => SysFunc::Fell,
+                "stable" => SysFunc::Stable,
+                _ => {
+                    return Err(WaveDslError::Parser {
+                        span,
+                        message: format!(
+                            "unknown system function '${func_name}'; expected $rose, $fell, or $stable"
+                        ),
+                    });
+                }
+            };
+            self.expect(&Token::LParen)?;
+            let signal = self.expect_ident()?;
+            self.expect(&Token::RParen)?;
+            Ok(CondExpr::SysFunc { func, signal, span })
+        } else {
+            let signal = self.expect_ident()?;
+            let op = match self.peek() {
+                Token::EqEq  => { self.advance(); CmpOp::Eq }
+                Token::BangEq => { self.advance(); CmpOp::Ne }
+                _ => {
+                    return Err(WaveDslError::Parser {
+                        span: self.span(),
+                        message: format!("expected '==' or '!=', found {:?}", self.peek()),
+                    });
+                }
+            };
+            let state = self.parse_state_val()?;
+            Ok(CondExpr::Compare { signal, op, state, span })
+        }
+    }
+
+    fn parse_state_val(&mut self) -> Result<StateVal, WaveDslError> {
+        let span = self.span();
+        match self.peek().clone() {
+            Token::Ident(s) => {
+                let s = s.clone();
+                self.advance();
+                match s.as_str() {
+                    "high" => Ok(StateVal::High),
+                    "low"  => Ok(StateVal::Low),
+                    "data" => Ok(StateVal::Data),
+                    "x"    => Ok(StateVal::X),
+                    "z"    => Ok(StateVal::Z),
+                    _ => Err(WaveDslError::Parser {
+                        span,
+                        message: format!(
+                            "expected state value (high/low/data/x/z), found '{s}'"
+                        ),
+                    }),
+                }
+            }
+            _ => Err(WaveDslError::Parser {
+                span,
+                message: format!(
+                    "expected state value (high/low/data/x/z), found {:?}",
+                    self.peek()
+                ),
+            }),
+        }
+    }
+
+    // ─── Sequence expression ──────────────────────────────────────────────────
+
+    fn parse_seq_expr(&mut self) -> Result<SeqExpr, WaveDslError> {
+        let span = self.span();
+        let expr = if matches!(self.peek(), Token::PoundPound) {
+            self.advance(); // consume ##
+            let cycles = self.expect_number()?;
+            let inner = Box::new(self.parse_seq_expr()?);
+            SeqExpr::Delay { cycles, expr: inner, span }
+        } else {
+            let cond = self.parse_cond_primary()?;
+            let mut result = SeqExpr::Cond(cond);
+            // Optional [*N] or [->N] suffix
+            match self.peek() {
+                Token::LBracketStar => {
+                    self.advance();
+                    let count = self.expect_number()?;
+                    self.expect(&Token::RBracket)?;
+                    result = SeqExpr::RepeatConsec { expr: Box::new(result), count, span };
+                }
+                Token::LBracketArrow => {
+                    self.advance();
+                    let count = self.expect_number()?;
+                    self.expect(&Token::RBracket)?;
+                    result = SeqExpr::RepeatGoto { expr: Box::new(result), count, span };
+                }
+                _ => {}
+            }
+            result
+        };
+
+        match self.peek() {
+            Token::And => {
+                self.advance();
+                let right = self.parse_seq_expr()?;
+                Ok(SeqExpr::And(Box::new(expr), Box::new(right)))
+            }
+            Token::Or => {
+                self.advance();
+                let right = self.parse_seq_expr()?;
+                Ok(SeqExpr::Or(Box::new(expr), Box::new(right)))
+            }
+            _ => Ok(expr),
+        }
     }
 }
 

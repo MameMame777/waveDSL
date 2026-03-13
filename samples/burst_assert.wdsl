@@ -1,0 +1,29 @@
+// Burst transfer — timing diagram + SystemVerilog assertions
+//
+// Demonstrates Approach A (wave pattern) and Approach B (when/then rules)
+// on a simple burst protocol.
+
+head {
+    text = "Burst Transfer"
+    tick = 0
+}
+
+signal clk   clock(18)
+
+// Approach A: wave pattern defines the expected burst sequence.
+// Trigger auto-detected: $rose(valid).
+// Consecutive identical cycles compressed with [*N].
+assert "burst_timing" clock=clk {
+    signal burst x(1) repeat(4, data(2, "0xAB") data(2, "0xCD")) x(1)
+    signal valid low(1) repeat(4, high(4)) low(1)
+}
+
+// Approach B: protocol rules as implication conditions.
+assert "burst_rules" clock=clk {
+    // While valid is high, burst must carry valid data (not undefined)
+    when valid == high then burst == data
+    // After valid rises, 16 consecutive cycles of valid data are expected
+    when $rose(valid)  then burst == data [*16]
+    // After valid falls, burst returns to undefined
+    when $fell(valid)  then burst == x
+}

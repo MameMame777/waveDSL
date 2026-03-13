@@ -38,9 +38,28 @@ fn generate_statements(statements: &[Statement]) -> Vec<JsonValue> {
             Statement::ConstDecl { .. } => {
                 // Constants are resolved in semantic phase; skip in codegen.
             }
+            Statement::AssertBlock(block) => {
+                if let crate::ast::AssertBody::Wave(signals) = &block.body {
+                    if !signals.is_empty() {
+                        result.push(generate_assert_wave_group(&block.name, signals));
+                    }
+                }
+                // Conditions-only blocks don't appear in the timing diagram.
+            }
         }
     }
     result
+}
+
+fn generate_assert_wave_group(
+    name: &str,
+    signals: &[crate::ast::AssertSignal],
+) -> JsonValue {
+    let mut arr: Vec<JsonValue> = vec![json!(name)];
+    for sig in signals {
+        arr.push(generate_signal(&sig.name, &sig.sequence, &[]));
+    }
+    JsonValue::Array(arr)
 }
 
 fn generate_signal(name: &str, sequence: &[WaveExpr], attrs: &[SignalAttr]) -> JsonValue {

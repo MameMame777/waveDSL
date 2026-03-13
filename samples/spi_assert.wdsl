@@ -1,0 +1,29 @@
+// SPI protocol: timing diagram + SystemVerilog assertions from a single source
+//
+// Compile:
+//   wavedsl samples/spi_assert.wdsl -o spi_assert.json
+//   -> samples/spi_assert.sv is generated automatically
+
+head {
+    text = "SPI Protocol Verification"
+    tick = 0
+}
+
+signal clk   clock(8)
+signal miso  x(1) data(2, "ACK") data(4, "0x3C") x(1)
+
+// Approach A: wave pattern assertion
+// Signals declared here define both the timing diagram group AND the SVA.
+// No need to repeat them at top level.
+assert "spi_transaction" clock=clk {
+    signal cs_n  high(1) low(6) high(1)
+    signal mosi  x(1) data(2, "CMD") data(4, "0xA5") x(1)
+}
+
+// Approach B: when/then condition assertions
+// Expresses protocol rules that are hard to capture with a single waveform.
+assert "spi_protocol_rules" clock=clk {
+    when cs_n == low  then mosi != x
+    when cs_n == high then mosi == x
+    when $rose(cs_n)  then ##1 mosi == x
+}

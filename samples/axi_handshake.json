@@ -1,0 +1,39 @@
+{
+  "head": {
+    "text": "AXI4 Write Handshake",
+    "tick": 0
+  },
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "PPPPPPPPPP"
+    },
+    {
+      "name": "awvalid",
+      "wave": "0.1...0..."
+    },
+    {
+      "name": "awready",
+      "wave": "0...10...."
+    },
+    {
+      "name": "wvalid",
+      "wave": "0.1...0..."
+    },
+    {
+      "name": "wready",
+      "wave": "0...1.0..."
+    },
+    [
+      "aw_handshake",
+      {
+        "name": "awvalid",
+        "wave": "0.1...0..."
+      },
+      {
+        "name": "awready",
+        "wave": "0...10...."
+      }
+    ]
+  ]
+}
