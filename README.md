@@ -196,6 +196,8 @@ signal cs_n  high(1) low(6) high(1)
 }
 ```
 
+![simple_spi](picture/simple_spi.png)
+
 ### 2. Burst transfer (`repeat`)
 
 ```
@@ -215,6 +217,8 @@ signal valid low(1) repeat(4, high(4)) low(1)
   ]
 }
 ```
+
+![burst](picture/burst.png)
 
 ### 3. Grouped bus signals
 
@@ -249,6 +253,8 @@ group "AXI" {
   ]
 }
 ```
+
+![axi_group](picture/axi_group.png)
 
 ### 4. Differential clock
 
@@ -323,6 +329,10 @@ assert "spi_protocol_rules" clock=clk {
     when $rose(cs_n)  then ##1 mosi == x
 }
 ```
+
+**Waveform**
+
+![spi_assert](picture/spi_assert.png)
 
 **`spi_assert.json`** — assert wave block becomes a named group in the diagram:
 
@@ -488,7 +498,8 @@ endproperty
 assert property (axi_write_rules_2);
 ```
 
-See `samples/` directory for all input/output pairs.
+See `samples/` directory for all input/output pairs.  
+For rendered waveform screenshots of all samples, see **[docs/sample-gallery.md](docs/sample-gallery.md)**.
 
 ## Specification
 
