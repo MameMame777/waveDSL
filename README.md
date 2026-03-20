@@ -507,4 +507,6 @@ See [wavedsl-spec.md](wavedsl-spec.md) for the full language specification.
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2026 MameMame777
