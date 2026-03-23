@@ -28,3 +28,10 @@ axi_output.json
 burst_output.json
 testtest.json
 wavedsl-v*.zip
+wavedsl-v*.tar.gz
+
+# Vendored dependencies (release artifact only, not committed)
+vendor/
+
+# Cargo offline config (release artifact only)
+.cargo/config.toml

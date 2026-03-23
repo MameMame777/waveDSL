@@ -10,6 +10,35 @@ WaveDSL is a domain-specific language designed for both humans and AI to read an
 cargo build --release
 ```
 
+The file `rust-toolchain.toml` pins the Rust version to 1.93.1.
+`rustup` will automatically use this version inside the project directory.
+
+## Offline Build (Enterprise / Air-Gapped)
+
+Each release includes a `wavedsl-vX.Y.Z-src-vendored.tar.gz` archive
+containing all source code and transitive dependency sources.
+No internet access is required to build from this archive.
+
+```bash
+tar -xzf wavedsl-v0.4.0-src-vendored.tar.gz
+cd wavedsl-v0.4.0-src-vendored
+cargo build --release --offline --locked
+```
+
+**Toolchain**: Install Rust 1.93.1 before building:
+
+```
+rustup toolchain install 1.93.1
+```
+
+**Checksum verification** (recommended before building):
+
+```
+certutil -hashfile wavedsl-v0.4.0-src-vendored.tar.gz SHA256
+```
+
+Compare the output against `CHECKSUMS.txt` attached to the GitHub Release.
+
 ## Usage
 
 ```bash
